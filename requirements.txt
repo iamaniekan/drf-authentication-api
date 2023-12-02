@@ -1,0 +1,4 @@
+django
+django-restframework
+django-rest-authemail
+requests
