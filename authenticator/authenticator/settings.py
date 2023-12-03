@@ -40,7 +40,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
-    'authemail',
     'accounts',
 ]
 
@@ -50,7 +49,7 @@ REST_FRAMEWORK = {
 	)
 }
 
-AUTH_USER_MODEL = 'accounts.UserProfile'
+AUTH_USER_MODEL = 'accounts.CustomUserProfile'
 AUTH_EMAIL_VERIFICATION = True
 
 MIDDLEWARE = [

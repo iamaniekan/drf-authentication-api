@@ -57,3 +57,26 @@ class UserProfileSignupSerializer(serializers.ModelSerializer):
         user.save()
         return user
     
+class UserPasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class UserPasswordResetVerifySerializer(serializers.Serializer):
+    code = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+class UserEmailChangeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class UserEmailChangeVerifySerializer(serializers.Serializer):
+    code = serializers.CharField()
+    new_email = serializers.EmailField()
+    
+    def validate_code(self, value):
+        return value
+
+class UserPasswordChangeSerializer(serializers.Serializer):
+    old_password = serializers.CharField(style={'input_type': 'password'})
+    new_password = serializers.CharField(style={'input_type': 'password'})
+
+class EmailConfirmationSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=255)
