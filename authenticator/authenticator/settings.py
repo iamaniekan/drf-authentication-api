@@ -26,7 +26,9 @@ SECRET_KEY = 'django-insecure-t57w^o-fz*a$t1n8pe&zb_2u+++srkz9kqg9$e^k7reby$ceyv
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+]
 
 
 # Application definition
@@ -41,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'accounts',
+    'corsheaders',
 ]
 
 REST_FRAMEWORK = {
@@ -60,6 +63,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+
 ]
 
 ROOT_URLCONF = 'authenticator.urls'
@@ -144,3 +149,37 @@ EMAIL_PORT = 465
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'Your Email'
 EMAIL_HOST_PASSWORD = 'Your Password'
+
+# Allow all domains to access the API (you may want to restrict this in production)
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+]
+
+# Allow credentials such as cookies to be included in the request
+CORS_ALLOW_CREDENTIALS = True
+
+# Enable CORS for all routes
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Allow specific headers in the CORS request
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Allow specific methods in the CORS request
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]

@@ -21,9 +21,5 @@ class CustomUserAdmin(admin.ModelAdmin):
     search_fields = ('email', 'first_name', 'last_name')
     ordering = ('email',)
 
-try:
-    admin.site.unregister(get_user_model())
-except admin.sites.NotRegistered:
-    pass
 
 admin.site.register(CustomUserProfile, CustomUserAdmin)
