@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext as _
+from django.utils import timezone
+from django.utils.crypto import get_random_string
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -26,8 +28,10 @@ class CustomUserProfile(AbstractUser):
     is_staff = models.BooleanField(default=False)
     email_confirmed = models.BooleanField(default=False, verbose_name=_('Email Confirmed'))
     email_confirmation_code = models.CharField(max_length=255, null=True, blank=True, verbose_name=_('Email Confirmation Code'))
+    email_verification_code = models.CharField(max_length=6, null=True, blank=True, verbose_name=_('verification code'))
+
     
-    username = models.CharField(max_length=30, unique=True, default='default_username')
+    username = models.CharField(max_length=30, unique=True)
 
 
     objects = CustomUserManager()
@@ -44,3 +48,15 @@ class EmailConfirmation(models.Model):
 
     def __str__(self):
         return f"Email Confirmation for {self.user.username}"
+    
+class EmailConfirmationManager(models.Manager):
+    def create_confirmation(self, user):
+        code = get_random_string(length=6)  # Generate a 6-digit code
+        return self.create(user=user, code=code, created_at=timezone.now())
+
+    def verify_confirmation(self, user, code):
+        confirmation = self.filter(user=user, code=code).first()
+        if confirmation and not confirmation.is_expired():
+            confirmation.delete()
+            return True
+        return False

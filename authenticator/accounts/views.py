@@ -1,13 +1,14 @@
+import random
+import string
+
 from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
 from django.contrib.auth.tokens import default_token_generator
-from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.contrib.auth import get_user_model
 from django.contrib.auth import authenticate, login, logout
+from django.utils.crypto import get_random_string
+from django.utils import timezone
+
 
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -113,31 +114,47 @@ class UserLogoutView(APIView):
         logout(request)
         return Response({'success': 'User logged out successfully.'}, status=status.HTTP_200_OK)
 
+
+def generate_verification_code():
+    # Generate a random 6-digit code
+    return ''.join(random.choices(string.digits, k=6))
+
 class UserPasswordResetView(APIView):
     def post(self, request, format=None):
         serializer = UserPasswordResetSerializer(data=request.data)
 
         if serializer.is_valid():
             email = serializer.validated_data['email']
-            
-            # Find the user with the provided email
+
             try:
+                # Find the user with the provided email
                 user = get_user_model().objects.get(email=email)
             except get_user_model().DoesNotExist:
                 return Response({'error': _('User with this email does not exist.')}, status=status.HTTP_400_BAD_REQUEST)
 
             # Generate a unique code for password reset
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            token = default_token_generator.make_token(user)
+            code = generate_verification_code()
 
-            # Construct the reset link with the code
-            reset_link = f'http://yourwebsite.com/reset-password/verify/?uid={uid}&token={token}'
+            # Attach the code to the user
+            user.email_verification_code = code
+            user.save()
 
             # Send the reset password email
             subject = _('Reset Your Password')
-            message = f'Click the following link to reset your password: {reset_link}'
-            from_email = 'your-email@example.com'  # Update with your email
+            message = f'Your verification code is: {code}'
+            from_email = 'itsaniekan@gmail.com'  
             to_email = [email]
+
+            try:
+                # Send the email
+                send_mail(subject, message, from_email, to_email, fail_silently=True)
+            except Exception as e:
+                # Handle email sending failure
+                return Response({'error': _('Failed to send reset email.')}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response({'success': _('Verification code sent successfully.')}, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PasswordResetVerifyView(APIView):
     def post(self, request, format=None):
@@ -148,12 +165,11 @@ class PasswordResetVerifyView(APIView):
             code = serializer.validated_data['code']
             new_password = serializer.validated_data['new_password']
 
-            # Decode the user ID from the code
+            # Find the user with the provided email and verification code
             try:
-                uid = force_str(urlsafe_base64_decode(code))
-                user = get_user_model().objects.get(pk=uid, email=email)
-            except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
-                return Response({'error': _('Invalid verification code.')}, status=status.HTTP_400_BAD_REQUEST)
+                user = get_user_model().objects.get(email=email, email_verification_code=code)
+            except get_user_model().DoesNotExist:
+                return Response({'error': _('Invalid verification code or email.')}, status=status.HTTP_400_BAD_REQUEST)
 
             # Check if the verification code is valid
             if not default_token_generator.check_token(user, code):
@@ -167,41 +183,46 @@ class PasswordResetVerifyView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+from django.db.models import F
 
 class UserEmailChangeView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def send_email_change_confirmation(self, user, confirmation):
         subject = 'Confirm Email Change'
-        from_email = 'your_email@example.com'  # Replace with your email
+        message = f'Your verification code is: {confirmation.code}'
+        from_email = 'itsaniekan@gmail.com'  # Replace with your email
         to_email = user.email
         
-        # Construct the confirmation link with the code
-        confirmation_link = reverse('email-change-verify')
-        confirmation_link += f'?code={confirmation.code}'
-
-        # Render the email template
-        email_context = {'user': user, 'confirmation_code': confirmation.code}
-        html_message = render_to_string('email_change_template.html', email_context)
-        plain_message = strip_tags(html_message)
-
         # Send the email
-        send_mail(subject, plain_message, from_email, [to_email], html_message=html_message)
-
+        send_mail(subject, message, from_email, [to_email], fail_silently=True)
+        
+    
     def post(self, request, format=None):
         serializer = UserEmailChangeSerializer(data=request.data)
         if serializer.is_valid():
             user = request.user
             new_email = serializer.validated_data['email']
 
-            # Generate code for email change
-            confirmation = EmailConfirmation.create(user)
+            # Use get_or_create to simplify the code
+            existing_confirmation, created = EmailConfirmation.objects.get_or_create(
+                user=user,
+                defaults={'code': get_random_string(length=6), 'created_at': timezone.now()}
+            )
 
-            # Send the email change confirmation email
-            self.send_email_change_confirmation(user, confirmation)
+            # If the object was not created, update the code and timestamp
+            if not created:
+                existing_confirmation.code = get_random_string(length=6)
+                existing_confirmation.created_at = timezone.now()
+                existing_confirmation.save()
+
+            # Send the email change confirmation email with code
+            self.send_email_change_confirmation(user, existing_confirmation)
 
             return Response({'success': 'Email change request sent successfully.'}, status=status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class UserEmailChangeVerifyView(APIView):
@@ -231,11 +252,11 @@ class UserPasswordChangeView(APIView):
 
         if serializer.is_valid():
             user = request.user
-            current_password = serializer.validated_data['current_password']
+            old_password = serializer.validated_data['old_password']
             new_password = serializer.validated_data['new_password']
 
             # Check if the current password is correct
-            if not user.check_password(current_password):
+            if not user.check_password(old_password):
                 return Response({'error': _('Current password is incorrect.')}, status=status.HTTP_400_BAD_REQUEST)
 
             # Set the new password and save the user

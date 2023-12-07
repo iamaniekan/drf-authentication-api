@@ -61,8 +61,16 @@ class UserPasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 class UserPasswordResetVerifySerializer(serializers.Serializer):
-    code = serializers.CharField()
-    password = serializers.CharField(write_only=True)
+    code = serializers.CharField(max_length=6, min_length=6)
+    new_password = serializers.CharField(write_only=True, required=True)
+
+    def validate(self, data):
+        code = data.get('code', None)
+
+        if code is None:
+            raise serializers.ValidationError({'code': 'Code is required.'})
+
+        return data
 
 class UserEmailChangeSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -80,3 +88,8 @@ class UserPasswordChangeSerializer(serializers.Serializer):
 
 class EmailConfirmationSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=255)
+    
+class UserActivationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = get_user_model()
+        fields = ['code']
