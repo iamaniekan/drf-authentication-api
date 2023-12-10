@@ -23,15 +23,14 @@ class CustomUserProfile(AbstractUser):
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
-    date_joined = models.DateTimeField(auto_now_add=True)
+    date_joined = models.DateTimeField(default=timezone.now)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     email_confirmed = models.BooleanField(default=False, verbose_name=_('Email Confirmed'))
-    email_confirmation_code = models.CharField(max_length=255, null=True, blank=True, verbose_name=_('Email Confirmation Code'))
-    email_verification_code = models.CharField(max_length=6, null=True, blank=True, verbose_name=_('verification code'))
+    email_verification_code = models.CharField(max_length=6, null=True, blank=True, verbose_name=_('Verification code'))
 
     
-    username = models.CharField(max_length=30, unique=True)
+    username = models.CharField(max_length=30)
 
 
     objects = CustomUserManager()
@@ -44,19 +43,30 @@ class CustomUserProfile(AbstractUser):
     
 class EmailConfirmation(models.Model):
     user = models.OneToOneField(CustomUserProfile, on_delete=models.CASCADE, related_name='email_confirmation')
-    code = models.CharField(max_length=255, verbose_name=_('Confirmation Code'))
+    code = models.CharField(max_length=6, verbose_name=_('Confirmation Code'), unique=True)
+    created_at = models.DateTimeField(default=timezone.now, verbose_name=_('Creation Time'))
 
     def __str__(self):
         return f"Email Confirmation for {self.user.username}"
-    
-class EmailConfirmationManager(models.Manager):
-    def create_confirmation(self, user):
-        code = get_random_string(length=6)  # Generate a 6-digit code
-        return self.create(user=user, code=code, created_at=timezone.now())
 
-    def verify_confirmation(self, user, code):
-        confirmation = self.filter(user=user, code=code).first()
-        if confirmation and not confirmation.is_expired():
-            confirmation.delete()
+    def create_confirmation(self):
+        code = get_random_string(length=6)
+        self.code = code
+        self.save()
+        return code
+
+    def verify_confirmation(self, code):
+        if self.user.email_confirmed:
+            # Email is already confirmed
+            return False
+
+        if self.code == code:
+            # Verification successful
+            self.user.email_confirmed = True
+            self.user.code = None  # Clear the confirmation code
+            self.user.save()
+            self.delete()  # Remove the confirmation record
             return True
+
+        # Invalid confirmation code
         return False

@@ -10,7 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
-import os
+from datetime import timedelta
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -40,16 +40,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
     'rest_framework',
-    'rest_framework.authtoken',
+    'rest_framework_simplejwt',
     'accounts',
     'corsheaders',
 ]
 
+# Rest Framework Authentication Classes
 REST_FRAMEWORK = {
-	'DEFAULT_AUTHENTICATION_CLASSES': (
-		'rest_framework.authentication.TokenAuthentication',
-	)
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication', 
+    ),
 }
 
 AUTH_USER_MODEL = 'accounts.CustomUserProfile'
@@ -142,7 +144,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # Email settings
-
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 465
@@ -151,9 +152,7 @@ EMAIL_HOST_USER = 'Your Email'
 EMAIL_HOST_PASSWORD = 'Your Password'
 
 # Allow all domains to access the API (you may want to restrict this in production)
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-]
+CORS_ALLOWED_ORIGINS = ['http://127.0.0.1:8000']
 
 # Allow credentials such as cookies to be included in the request
 CORS_ALLOW_CREDENTIALS = True
@@ -183,3 +182,12 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
+
+# JWT configuration
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': True,
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=30),
+    'SLIDING_TOKEN_REFRESH_MAX_LIFETIME': timedelta(days=60),
+}

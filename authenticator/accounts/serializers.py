@@ -1,18 +1,24 @@
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext as _
+
 from rest_framework import serializers
-from rest_framework.authtoken.models import Token
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    token = serializers.SerializerMethodField()
-    
+    access_token = serializers.SerializerMethodField()
+    refresh_token = serializers.SerializerMethodField()
+
     class Meta:
         model = get_user_model()
-        fields = ('id', 'email', 'first_name', 'last_name', 'token')
+        fields = ('id', 'email', 'first_name', 'last_name', 'access_token', 'refresh_token')
 
-    def get_token(self, obj):
-        user, created = Token.objects.get_or_create(user=obj)
-        return user.key
+    def get_access_token(self, obj):
+        token = RefreshToken.for_user(obj)
+        return str(token.access_token)
+
+    def get_refresh_token(self, obj):
+        token = RefreshToken.for_user(obj)
+        return str(token)
     
 class UserProfileChangeSerializer(serializers.ModelSerializer):
     
@@ -87,9 +93,5 @@ class UserPasswordChangeSerializer(serializers.Serializer):
     new_password = serializers.CharField(style={'input_type': 'password'})
 
 class EmailConfirmationSerializer(serializers.Serializer):
-    code = serializers.CharField(max_length=255)
+    code = serializers.CharField(max_length=6)
     
-class UserActivationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = get_user_model()
-        fields = ['code']

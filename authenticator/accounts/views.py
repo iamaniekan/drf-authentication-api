@@ -4,20 +4,20 @@ import string
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.translation import gettext as _
-from django.contrib.auth import get_user_model
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.utils.crypto import get_random_string
 from django.utils import timezone
-from django.utils.encoding import force_str, force_bytes
-from django.utils.http import urlsafe_base64_decode
 
 
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.authentication import JWTAuthentication  
+from rest_framework_simplejwt.tokens import RefreshToken
+
+
 
 from .models import EmailConfirmation
 
@@ -58,7 +58,7 @@ class UserAccountChange(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class UserLogin(APIView):
+class UserLogin(TokenObtainPairView):
     serializer_class = UserProfileLoginSerializer
 
     def post(self, request, *args, **kwargs):
@@ -70,20 +70,21 @@ class UserLogin(APIView):
 
             user = authenticate(request, email=email, password=password)
 
-            if user is not None:
+            if user is not None and user.email_confirmed:
                 login(request, user)
-                token, created = Token.objects.get_or_create(user=user)
                 response_data = {
                     'user_id': user.id,
-                    'success': _('User authenticated.')
+                    'success': _('User authenticated.'),
                 }
-                response = Response(response_data, status=status.HTTP_200_OK)
-                response['Authorization'] = 'Token {}'.format(token.key)
-                return response
+                return Response(response_data, status=status.HTTP_200_OK)
+            elif user is not None and not user.email_confirmed:
+                return Response({'error': _('Email not confirmed. Please activate your account.')}, status=status.HTTP_401_UNAUTHORIZED)
             else:
                 return Response({'error': _('Invalid email or password.')}, status=status.HTTP_401_UNAUTHORIZED)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)    
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+  
     
 class UserSignup(APIView):
     serializer_class = UserProfileSignupSerializer
@@ -96,29 +97,68 @@ class UserSignup(APIView):
 
             # Check if the email is already registered
             if get_user_model().objects.filter(email=email).exists():
-                return Response({'error': _('Email is already registered.')},
-                                status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': _('Email is already registered.')}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Save the user first
             user = serializer.save()
-            token, created = Token.objects.get_or_create(user=user)
 
-            return Response({'success': _('User signed up successfully.'),
-                             'token': token.key},
-                            status=status.HTTP_200_OK)
+            # Create email confirmation
+            email_confirmation = EmailConfirmation(user=user)
+            confirmation_code = email_confirmation.create_confirmation()
+
+            # Send the account activation email
+            subject = _('Activate Your Account')
+            message = f'Your account activation code is: {confirmation_code}'
+            from_email = 'itsaniekan@gmail.com'  
+            to_email = [email]
+
+            try:
+                # Send the email
+                send_mail(subject, message, from_email, to_email, fail_silently=True)
+            except Exception as e:
+                # Handle email sending failure
+                return Response({'error': _('Failed to send activation email.')}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+
+            return Response({'success': _('User signed up successfully.')}, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class EmailConfirmationView(APIView):
+    serializer_class = EmailConfirmationSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+
+        if serializer.is_valid():
+            code = serializer.validated_data['code']
+
+            email_confirmation = EmailConfirmation.objects.filter(code=code).first()
+
+            if email_confirmation:
+                if email_confirmation.verify_confirmation(code):
+                    return Response({'success': _('Account Activated. Proceed To Log in')}, status=status.HTTP_200_OK)
+                else:
+                    return Response({'error': _('Invalid confirmation code.')}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({'error': _('Invalid confirmation code.')}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class UserLogoutView(APIView):
-    authentication_classes = (TokenAuthentication,)
-    permission_classes = (IsAuthenticated,)
+    authentication_classes = (IsAuthenticated,)
+    permission_classes = (JWTAuthentication,)
 
     def post(self, request, format=None):
         logout(request)
         return Response({'success': 'User logged out successfully.'}, status=status.HTTP_200_OK)
 
-
+# Generate a random 6-digit code
 def generate_verification_code():
-    # Generate a random 6-digit code
     return ''.join(random.choices(string.digits, k=6))
 
 class UserPasswordResetView(APIView):
@@ -190,7 +230,7 @@ class UserEmailChangeView(APIView):
     def send_email_change_confirmation(self, user, confirmation):
         subject = 'Confirm Email Change'
         message = f'Your verification code is: {confirmation.code}'
-        from_email = 'itsaniekan@gmail.com'  # Replace with your email
+        from_email = 'itsaniekan@gmail.com'  
         to_email = user.email
         
         # Send the email
@@ -223,7 +263,6 @@ class UserEmailChangeView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class UserEmailChangeVerifyView(APIView):
     def post(self, request, format=None):
         serializer = UserEmailChangeVerifySerializer(data=request.data)
@@ -243,8 +282,8 @@ class UserEmailChangeVerifyView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserPasswordChangeView(APIView):
-    permission_classes = (IsAuthenticated,)
+class UserPasswordChangeView(TokenObtainPairView):
+    permission_classes = (JWTAuthentication,)
 
     def post(self, request, format=None):
         serializer = UserPasswordChangeSerializer(data=request.data)
@@ -265,27 +304,5 @@ class UserPasswordChangeView(APIView):
             # Optional: Invalidate existing authentication tokens if needed
 
             return Response({'success': 'Password changed successfully.'}, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class EmailConfirmationView(APIView):
-    serializer_class = EmailConfirmationSerializer
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
-
-        if serializer.is_valid():
-            code = serializer.validated_data['code']
-
-            email_confirmation = EmailConfirmation.objects.filter(code=code).first()
-
-            if email_confirmation:
-                email_confirmation.user.email_confirmed = True
-                email_confirmation.user.save()
-                email_confirmation.delete()
-
-                return Response({'success': _('Email confirmed successfully.')}, status=status.HTTP_200_OK)
-
-            return Response({'error': _('Invalid confirmation code.')}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
