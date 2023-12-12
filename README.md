@@ -10,7 +10,6 @@ Django Authentication API is a feature-rich authentication system built with Dja
 - [Usage](#usage)
   - [API Endpoints](#api-endpoints)
   - [Authentication](#authentication)
-- [Configuration](#configuration)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -23,7 +22,7 @@ Ensure you have the following prerequisites installed:
 - [Python](https://www.python.org/)
 - [Django](https://www.djangoproject.com/)
 - [Django Rest Framework](https://www.django-rest-framework.org/)
-- [djangorestframework-simplejwt](https://github.com/davesque/django-rest-framework-simplejwt)
+
 
 ### Installation
 
@@ -115,11 +114,7 @@ The API should be accessible at `http://localhost:8000/`.
 
 ### Authentication
 
-- JWT (JSON Web Token) authentication is used for most endpoints.
-
-## Configuration
-
-Update the `settings.py` file for Django and Django Rest Framework configurations. Refer to the documentation of [django-oauth-toolkit](https://django-oauth-toolkit.readthedocs.io/en/latest/) and [djangorestframework-simplejwt](https://github.com/davesque/django-rest-framework-simplejwt) for advanced configuration options.
+- Token Authentication is used to secure endpoints where necessary
 
 ## Contributing
 
