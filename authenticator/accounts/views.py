@@ -2,43 +2,35 @@ import random
 import string
 
 from django.core.mail import send_mail
-from django.contrib.auth.tokens import default_token_generator
 from django.utils.translation import gettext as _
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.utils.crypto import get_random_string
 from django.utils import timezone
 
-
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.authentication import JWTAuthentication  
-from rest_framework_simplejwt.tokens import RefreshToken
-
-
+from rest_framework.authtoken.models import Token
 
 from .models import EmailConfirmation
+from .serializers import (ProfileSerializer, PasswordResetVerifySerializer,
+                          EmailChangeSerializer, EmailChangeVerifySerializer,
+                          PasswordChangeSerializer, PasswordResetSerializer,
+                          ProfileChangeSerializer, LoginSerializer,
+                          SignupSerializer, EmailConfirmationSerializer)
 
-from .serializers import (UserProfileSerializer,UserPasswordResetVerifySerializer,
-                          UserEmailChangeSerializer,UserEmailChangeVerifySerializer,
-                          UserPasswordChangeSerializer,UserPasswordResetSerializer,
-                          UserProfileChangeSerializer,UserProfileLoginSerializer,
-                          UserPasswordResetSerializer, UserProfileChangeSerializer, 
-                          UserProfileSignupSerializer, EmailConfirmationSerializer)
-
-class UserAccount(APIView):
+class Account(APIView):
     permission_classes = (IsAuthenticated,)
-    serializer_class = UserProfileSerializer
+    serializer_class = ProfileSerializer
 
     def get(self, request, format=None):
         serializer = self.serializer_class(request.user)
         return Response(serializer.data)
 
-class UserAccountChange(APIView):
+class AccountChange(APIView):
     permission_classes = (IsAuthenticated,)
-    serializer_class = UserProfileChangeSerializer
+    serializer_class = ProfileChangeSerializer
 
     def post(self, request, format=None):
         serializer = self.serializer_class(data=request.data)
@@ -58,17 +50,16 @@ class UserAccountChange(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class UserLogin(TokenObtainPairView):
-    serializer_class = UserProfileLoginSerializer
+class Login(APIView):
+    serializer_class = LoginSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
-            email = serializer.validated_data.get('email')
-            password = serializer.validated_data.get('password')
-
-            user = authenticate(request, email=email, password=password)
+            user = serializer.validated_data['user']
+            
+            token, created = Token.objects.get_or_create(user=user)
 
             if user is not None and user.email_confirmed:
                 login(request, user)
@@ -84,10 +75,8 @@ class UserLogin(TokenObtainPairView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-  
-    
-class UserSignup(APIView):
-    serializer_class = UserProfileSignupSerializer
+class Signup(APIView):
+    serializer_class = SignupSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
@@ -101,6 +90,9 @@ class UserSignup(APIView):
 
             # Save the user first
             user = serializer.save()
+            
+            # Create a token for the user
+            token, created = Token.objects.get_or_create(user=user)
 
             # Create email confirmation
             email_confirmation = EmailConfirmation(user=user)
@@ -109,7 +101,7 @@ class UserSignup(APIView):
             # Send the account activation email
             subject = _('Activate Your Account')
             message = f'Your account activation code is: {confirmation_code}'
-            from_email = 'itsaniekan@gmail.com'  
+            from_email = 'Your Email'  
             to_email = [email]
 
             try:
@@ -119,14 +111,9 @@ class UserSignup(APIView):
                 # Handle email sending failure
                 return Response({'error': _('Failed to send activation email.')}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            # Generate JWT tokens
-            refresh = RefreshToken.for_user(user)
-            access_token = str(refresh.access_token)
-
             return Response({'success': _('User signed up successfully.')}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
 
 class EmailConfirmationView(APIView):
     serializer_class = EmailConfirmationSerializer
@@ -148,10 +135,9 @@ class EmailConfirmationView(APIView):
                 return Response({'error': _('Invalid confirmation code.')}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class UserLogoutView(APIView):
-    authentication_classes = (IsAuthenticated,)
-    permission_classes = (JWTAuthentication,)
+
+class LogoutView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
         logout(request)
@@ -161,9 +147,9 @@ class UserLogoutView(APIView):
 def generate_verification_code():
     return ''.join(random.choices(string.digits, k=6))
 
-class UserPasswordResetView(APIView):
+class PasswordResetView(APIView):
     def post(self, request, format=None):
-        serializer = UserPasswordResetSerializer(data=request.data)
+        serializer = PasswordResetSerializer(data=request.data)
 
         if serializer.is_valid():
             email = serializer.validated_data['email']
@@ -184,7 +170,7 @@ class UserPasswordResetView(APIView):
             # Send the reset password email
             subject = _('Reset Your Password')
             message = f'Your verification code is: {code}'
-            from_email = 'itsaniekan@gmail.com'  
+            from_email = 'Your Email'  
             to_email = [email]
 
             try:
@@ -200,7 +186,7 @@ class UserPasswordResetView(APIView):
 
 class PasswordResetVerifyView(APIView):
     def post(self, request, format=None):
-        serializer = UserPasswordResetVerifySerializer(data=request.data)
+        serializer = PasswordResetVerifySerializer(data=request.data)
 
         if serializer.is_valid():
             code = serializer.validated_data['code']
@@ -224,13 +210,13 @@ class PasswordResetVerifyView(APIView):
 
 
 
-class UserEmailChangeView(APIView):
+class EmailChangeView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def send_email_change_confirmation(self, user, confirmation):
         subject = 'Confirm Email Change'
         message = f'Your verification code is: {confirmation.code}'
-        from_email = 'itsaniekan@gmail.com'  
+        from_email = 'Your Email'  
         to_email = user.email
         
         # Send the email
@@ -238,7 +224,7 @@ class UserEmailChangeView(APIView):
         
     
     def post(self, request, format=None):
-        serializer = UserEmailChangeSerializer(data=request.data)
+        serializer = EmailChangeSerializer(data=request.data)
         if serializer.is_valid():
             user = request.user
             new_email = serializer.validated_data['email']
@@ -263,9 +249,9 @@ class UserEmailChangeView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserEmailChangeVerifyView(APIView):
+class EmailChangeVerifyView(APIView):
     def post(self, request, format=None):
-        serializer = UserEmailChangeVerifySerializer(data=request.data)
+        serializer = EmailChangeVerifySerializer(data=request.data)
         if serializer.is_valid():
             user = request.user
             code = serializer.validated_data['code']
@@ -282,11 +268,11 @@ class UserEmailChangeVerifyView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserPasswordChangeView(TokenObtainPairView):
-    permission_classes = (JWTAuthentication,)
+class PasswordChangeView(APIView):
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, format=None):
-        serializer = UserPasswordChangeSerializer(data=request.data)
+        serializer = PasswordChangeSerializer(data=request.data)
 
         if serializer.is_valid():
             user = request.user
