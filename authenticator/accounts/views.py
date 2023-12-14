@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import PermissionDenied
 
 from .models import EmailConfirmation
 from .serializers import (ProfileSerializer, PasswordResetVerifySerializer,
@@ -67,7 +68,11 @@ class Login(APIView):
                     'user_id': user.id,
                     'success': _('User authenticated.'),
                 }
-                return Response(response_data, status=status.HTTP_200_OK)
+                
+                # Include the token in the response header
+                response = Response(response_data, status=status.HTTP_200_OK)
+                response['Authorization'] = f'Token {token.key}'
+                return response
             elif user is not None and not user.email_confirmed:
                 return Response({'error': _('Email not confirmed. Please activate your account.')}, status=status.HTTP_401_UNAUTHORIZED)
             else:
@@ -148,6 +153,8 @@ def generate_verification_code():
     return ''.join(random.choices(string.digits, k=6))
 
 class PasswordResetView(APIView):
+    serializer_class = PasswordResetSerializer
+    
     def post(self, request, format=None):
         serializer = PasswordResetSerializer(data=request.data)
 
@@ -185,6 +192,8 @@ class PasswordResetView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class PasswordResetVerifyView(APIView):
+    serializer_class = PasswordResetVerifySerializer
+    
     def post(self, request, format=None):
         serializer = PasswordResetVerifySerializer(data=request.data)
 
@@ -192,74 +201,73 @@ class PasswordResetVerifyView(APIView):
             code = serializer.validated_data['code']
             new_password = serializer.validated_data['new_password']
 
-            if request.user.is_authenticated:
-                user = request.user
+            # Find the user with the provided verification code
+            try:
+                user = get_user_model().objects.get(email_verification_code=code)
+            except get_user_model().DoesNotExist:
+                return Response({'error': _('Invalid verification code.')}, status=status.HTTP_400_BAD_REQUEST)
 
-                if user.email_verification_code != code:
-                    return Response({'error': _('Invalid verification code.')}, status=status.HTTP_400_BAD_REQUEST)
+            # Set the new password and clear the verification code
+            user.set_password(new_password)
+            user.email_verification_code = None
+            user.save()
 
-                user.set_password(new_password)
-                user.email_verification_code = None  # Clear the verification code after use
-                user.save()
-
-                return Response({'success': _('Password reset successfully.')}, status=status.HTTP_200_OK)
-            else:
-                return Response({'error': _('User is not authenticated.')}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'success': _('Password reset successfully.')}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class EmailChangeView(APIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = EmailChangeSerializer
 
-    def send_email_change_confirmation(self, user, confirmation):
+    def send_email_change_confirmation(self, user):
+        code = get_random_string(length=6)
+        user.email_verification_code = code
+        user.save()
+
         subject = 'Confirm Email Change'
-        message = f'Your verification code is: {confirmation.code}'
+        message = f'Your verification code is: {code}'
         from_email = 'Your Email'  
         to_email = user.email
-        
+
         # Send the email
         send_mail(subject, message, from_email, [to_email], fail_silently=True)
-        
-    
+
     def post(self, request, format=None):
         serializer = EmailChangeSerializer(data=request.data)
+
         if serializer.is_valid():
             user = request.user
             new_email = serializer.validated_data['email']
 
-            # Use get_or_create to simplify the code
-            existing_confirmation, created = EmailConfirmation.objects.get_or_create(
-                user=user,
-                defaults={'code': get_random_string(length=6), 'created_at': timezone.now()}
-            )
-
-            # If the object was not created, update the code and timestamp
-            if not created:
-                existing_confirmation.code = get_random_string(length=6)
-                existing_confirmation.created_at = timezone.now()
-                existing_confirmation.save()
+            # Verify that the provided email matches the logged-in user's email
+            if new_email != user.email:
+                raise PermissionDenied("Provided email doesn't match the logged-in user's email.")
 
             # Send the email change confirmation email with code
-            self.send_email_change_confirmation(user, existing_confirmation)
+            self.send_email_change_confirmation(user)
 
             return Response({'success': 'Email change request sent successfully.'}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class EmailChangeVerifyView(APIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = EmailChangeVerifySerializer
+    
     def post(self, request, format=None):
         serializer = EmailChangeVerifySerializer(data=request.data)
+        
         if serializer.is_valid():
             user = request.user
             code = serializer.validated_data['code']
             new_email = serializer.validated_data['new_email']
 
             # Validate the code and update the email if valid
-            if EmailConfirmation.verify(user, code):
+            if user.email_verification_code == code:
                 user.email = new_email
+                user.email_verification_code = None  # Clear the verification code
                 user.save()
                 return Response({'success': 'Email changed successfully.'}, status=status.HTTP_200_OK)
             else:

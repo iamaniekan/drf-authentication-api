@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext as _
 from django.utils import timezone
-from django.utils.crypto import get_random_string
+from random import randint
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -29,9 +29,7 @@ class CustomUserProfile(AbstractUser):
     email_confirmed = models.BooleanField(default=False, verbose_name=_('Email Confirmed'))
     email_verification_code = models.CharField(max_length=6, null=True, blank=True, verbose_name=_('Verification code'))
 
-    
     username = models.CharField(max_length=30)
-
 
     objects = CustomUserManager()
 
@@ -40,18 +38,18 @@ class CustomUserProfile(AbstractUser):
 
     def __str__(self):
         return self.email
-    
+
 class EmailConfirmation(models.Model):
     user = models.OneToOneField(CustomUserProfile, on_delete=models.CASCADE, related_name='email_confirmation')
-    code = models.CharField(max_length=6, verbose_name=_('Confirmation Code'), unique=True)
     created_at = models.DateTimeField(default=timezone.now, verbose_name=_('Creation Time'))
 
     def __str__(self):
         return f"Email Confirmation for {self.user.username}"
 
     def create_confirmation(self):
-        code = get_random_string(length=6)
-        self.code = code
+        code = str(randint(100000, 999999))  # Generate a random 6-digit code
+        self.user.email_verification_code = code
+        self.user.save()
         self.save()
         return code
 
@@ -60,10 +58,10 @@ class EmailConfirmation(models.Model):
             # Email is already confirmed
             return False
 
-        if self.code == code:
+        if self.user.email_verification_code == code:
             # Verification successful
             self.user.email_confirmed = True
-            self.user.code = None  # Clear the confirmation code
+            self.user.email_verification_code = None  # Clear the verification code
             self.user.save()
             self.delete()  # Remove the confirmation record
             return True

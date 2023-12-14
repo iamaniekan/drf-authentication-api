@@ -60,7 +60,7 @@ class EmailConfirmationSerializer(serializers.Serializer):
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
-
+    
 
 class PasswordResetVerifySerializer(serializers.Serializer):
     code = serializers.CharField()
