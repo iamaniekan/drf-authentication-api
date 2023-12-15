@@ -3,7 +3,7 @@ import string
 
 from django.core.mail import send_mail
 from django.utils.translation import gettext as _
-from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.contrib.auth import login, logout, get_user_model
 from django.utils.crypto import get_random_string
 from django.utils import timezone
 
@@ -100,7 +100,7 @@ class Signup(APIView):
             Token.objects.create(user=user)
 
             # Create email confirmation
-            email_confirmation = EmailConfirmation(user=user)
+            email_confirmation = AccountActivation(user=user)
             confirmation_code = email_confirmation.create_confirmation()
 
             # Send the account activation email

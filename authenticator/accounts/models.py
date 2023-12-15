@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext as _
 from django.utils import timezone
+
 from random import randint
 
 class CustomUserManager(BaseUserManager):
@@ -62,3 +63,4 @@ class AccountActivation(models.Model):
 
         # Invalid confirmation code
         return False
+    

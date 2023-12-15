@@ -46,12 +46,17 @@ INSTALLED_APPS = [
     'corsheaders',
 ]
 
+# End User session after 30 minutes of inactivity
+SESSION_COOKIE_AGE = 30 * 60
+
+
 # Rest Framework Authentication Classes
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ),
+    'TOKEN_EXPIRED_AFTER_SECONDS': 1800,
 }
 
 AUTH_USER_MODEL = 'accounts.CustomUserProfile'
