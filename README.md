@@ -56,7 +56,7 @@ Ensure you have the following prerequisites installed:
     python manage.py runserver
     ```
 
-The API should be accessible at `http://localhost:8000/`.
+The API should be accessible at `http://localhost:8000/api/accounts/`.
 
 ## Usage
 
@@ -74,39 +74,44 @@ The API should be accessible at `http://localhost:8000/`.
 3. **User Login:** `/login/`
     - Method: `POST`
     - Input: Email and password
-    - Returns a JWT token on successful login
+    - Returns user information
 
 4. **User Signup:** `/signup/`
     - Method: `POST`
     - Input: First name, last name, email, and password
-    - Returns a JWT token on successful signup
+    - Returns success message
 
-5. **User Logout:** `/logout/`
+5. **Account Activation:** `/activate-account/`
+    - Method: `POST`
+    - Input: Activation code
+    - Activates user account so that users can login
+
+6. **User Logout:** `/logout/`
     - Method: `POST`
     - Requires authentication
     - Logs out the user
 
-6. **Password Reset Request:** `/password-reset/`
+7. **Password Reset Request:** `/password-reset/`
     - Method: `POST`
     - Input: Email
     - Sends a verification code for password reset to the user's email
 
-7. **Password Reset Verify:** `/password-reset/verify/`
+8. **Password Reset Verify:** `/password-reset/verify/`
     - Method: `POST`
     - Input: Verification code and new password
     - Resets the user's password
 
-8. **Email Change Request:** `/email-change/`
+9. **Email Change Request:** `/email-change/`
     - Method: `POST`
     - Requires authentication
     - Sends a verification code for email change to the user's email
 
-9. **Email Change Verify:** `/email-change/verify/`
+10. **Email Change Verify:** `/email-change/verify/`
     - Method: `POST`
     - Input: Verification code and new email
     - Changes the user's email
 
-10. **Password Change:** `/password-change/`
+11. **Password Change:** `/password-change/`
     - Method: `POST`
     - Requires authentication
     - Input: Old password and new password

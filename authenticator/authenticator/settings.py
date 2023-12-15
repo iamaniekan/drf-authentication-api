@@ -47,7 +47,7 @@ INSTALLED_APPS = [
 ]
 
 # End User session after 30 minutes of inactivity
-SESSION_COOKIE_AGE = 30 * 60
+SESSION_COOKIE_AGE = 5 * 60
 
 
 # Rest Framework Authentication Classes
@@ -56,7 +56,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ),
-    'TOKEN_EXPIRED_AFTER_SECONDS': 1800,
+    'TOKEN_EXPIRED_AFTER_SECONDS': 300,
 }
 
 AUTH_USER_MODEL = 'accounts.CustomUserProfile'
@@ -71,7 +71,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-
 ]
 
 ROOT_URLCONF = 'authenticator.urls'
