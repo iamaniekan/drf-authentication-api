@@ -54,7 +54,7 @@ class SignupSerializer(serializers.ModelSerializer):
         return user
 
 
-class EmailConfirmationSerializer(serializers.Serializer):
+class AccountActivationSerializer(serializers.Serializer):
     code = serializers.CharField()
 
 

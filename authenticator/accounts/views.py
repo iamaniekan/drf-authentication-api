@@ -14,12 +14,12 @@ from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import PermissionDenied
 
-from .models import EmailConfirmation
+from .models import AccountActivation
 from .serializers import (ProfileSerializer, PasswordResetVerifySerializer,
                           EmailChangeSerializer, EmailChangeVerifySerializer,
                           PasswordChangeSerializer, PasswordResetSerializer,
                           ProfileChangeSerializer, LoginSerializer,
-                          SignupSerializer, EmailConfirmationSerializer)
+                          SignupSerializer, AccountActivationSerializer)
 
 class Account(APIView):
     permission_classes = (IsAuthenticated,)
@@ -97,7 +97,7 @@ class Signup(APIView):
             user = serializer.save()
             
             # Create a token for the user
-            token, created = Token.objects.get_or_create(user=user)
+            Token.objects.create(user=user)
 
             # Create email confirmation
             email_confirmation = EmailConfirmation(user=user)
@@ -120,19 +120,19 @@ class Signup(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class EmailConfirmationView(APIView):
-    serializer_class = EmailConfirmationSerializer
+class AccountActivationView(APIView):
+    serializer_class = AccountActivationSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
-            code = serializer.validated_data['code']
+            activation_code = serializer.validated_data.get('code')  
 
-            email_confirmation = EmailConfirmation.objects.filter(code=code).first()
+            email_confirmation = AccountActivation.objects.filter(activation_code=activation_code).first()
 
             if email_confirmation:
-                if email_confirmation.verify_confirmation(code):
+                if email_confirmation.verify_confirmation(activation_code):
                     return Response({'success': _('Account Activated. Proceed To Log in')}, status=status.HTTP_200_OK)
                 else:
                     return Response({'error': _('Invalid confirmation code.')}, status=status.HTTP_400_BAD_REQUEST)
@@ -140,6 +140,7 @@ class EmailConfirmationView(APIView):
                 return Response({'error': _('Invalid confirmation code.')}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LogoutView(APIView):
     permission_classes = (IsAuthenticated,)
