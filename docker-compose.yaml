@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: app_api
+    volumes:
+      - ./authenticator:/app
+      - ./requirements.txt:/app/requirements.txt
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=authenticator.settings
+      - DEBUG=True
+      - DATABASE_URL=postgres://admin_user:yadminuser1234@postgres:5432/auth_db
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:13
+    container_name: app_db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: adminuser1234
+    ports:
+      - "5432:5432"

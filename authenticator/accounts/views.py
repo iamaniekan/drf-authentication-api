@@ -5,7 +5,6 @@ from django.core.mail import send_mail
 from django.utils.translation import gettext as _
 from django.contrib.auth import login, logout, get_user_model
 from django.utils.crypto import get_random_string
-from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated

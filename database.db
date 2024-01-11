@@ -1,4 +1,0 @@
-SELECT * FROM django_admin_log WHERE user_id = 1;
-UPDATE django_admin_log SET user_id = 1 WHERE user_id = 1;
-DELETE FROM django_admin_log WHERE user_id = 1;
-SELECT * FROM django_admin_log WHERE user_id NOT IN (SELECT id FROM accounts_userprofile);
