@@ -1,2 +1,2 @@
 auth/
-db.sqlite3
+authenticator/db.sqlite3
